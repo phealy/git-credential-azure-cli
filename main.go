@@ -391,11 +391,14 @@ for Azure DevOps, Visual Studio, and other Azure-authenticated git services.
 
 When invoked as a git credential helper (with 'get' argument), it reads
 credential request from stdin and outputs bearer token credentials.`,
-		// Handle legacy 'get' command for git credential protocol
+		// Silently ignore unknown commands per git credential helper spec:
+		// "If it does not support the requested operation, it should silently ignore the request."
 		Run: func(cmd *cobra.Command, args []string) {
-			// If no subcommand, show help
-			cmd.Help()
+			// Silently exit with success for unknown operations
 		},
+		// Suppress errors for unknown commands to exit silently
+		SilenceErrors: true,
+		SilenceUsage:  true,
 	}
 
 	// Add persistent verbose flag
@@ -442,30 +445,6 @@ Usage:
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(exportsCmd)
 
-	// Store command (no-op, git credential helper protocol)
-	var storeCmd = &cobra.Command{
-		Use:    "store",
-		Short:  "Store credentials (no-op)",
-		Long:   "No-op command for git credential helper protocol compatibility. Credentials are managed by Azure CLI.",
-		Hidden: true,
-		Run: func(cmd *cobra.Command, args []string) {
-			// No-op: we don't store credentials, Azure CLI manages them
-			debugf(1, "Store command called (no-op)")
-		},
-	}
-
-	// Erase command (no-op, git credential helper protocol)
-	var eraseCmd = &cobra.Command{
-		Use:    "erase",
-		Short:  "Erase credentials (no-op)",
-		Long:   "No-op command for git credential helper protocol compatibility. Credentials are managed by Azure CLI.",
-		Hidden: true,
-		Run: func(cmd *cobra.Command, args []string) {
-			// No-op: we don't erase credentials, Azure CLI manages them
-			debugf(1, "Erase command called (no-op)")
-		},
-	}
-
 	// Version command
 	var versionCmd = &cobra.Command{
 		Use:   "version",
@@ -475,11 +454,11 @@ Usage:
 		},
 	}
 
-	rootCmd.AddCommand(storeCmd)
-	rootCmd.AddCommand(eraseCmd)
 	rootCmd.AddCommand(versionCmd)
 
-	if err := rootCmd.Execute(); err != nil {
-		os.Exit(1)
-	}
+	// Execute the command. Per git credential helper spec, unknown operations
+	// should be silently ignored with a successful exit code.
+	// Cobra returns an error for unknown subcommands, but we ignore it to
+	// comply with the spec: "it should silently ignore the request"
+	rootCmd.Execute()
 }
