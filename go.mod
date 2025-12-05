@@ -1,4 +1,4 @@
-module git-credential-azure-cli
+module github.com/phealy/git-credential-azure-cli
 
 go 1.24.1
 
