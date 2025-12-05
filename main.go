@@ -439,6 +439,33 @@ Usage:
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(exportsCmd)
 
+	// Store command (no-op, git credential helper protocol)
+	var storeCmd = &cobra.Command{
+		Use:    "store",
+		Short:  "Store credentials (no-op)",
+		Long:   "No-op command for git credential helper protocol compatibility. Credentials are managed by Azure CLI.",
+		Hidden: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			// No-op: we don't store credentials, Azure CLI manages them
+			debugf(1, "Store command called (no-op)")
+		},
+	}
+
+	// Erase command (no-op, git credential helper protocol)
+	var eraseCmd = &cobra.Command{
+		Use:    "erase",
+		Short:  "Erase credentials (no-op)",
+		Long:   "No-op command for git credential helper protocol compatibility. Credentials are managed by Azure CLI.",
+		Hidden: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			// No-op: we don't erase credentials, Azure CLI manages them
+			debugf(1, "Erase command called (no-op)")
+		},
+	}
+
+	rootCmd.AddCommand(storeCmd)
+	rootCmd.AddCommand(eraseCmd)
+
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
