@@ -41,6 +41,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Version information (set via ldflags at build time)
+var version = "dev"
+
 var defaultAllowedDomains = []string{"visualstudio.com", "dev.azure.com"}
 
 // Resource overrides for hosts that need a different token resource.
@@ -463,8 +466,18 @@ Usage:
 		},
 	}
 
+	// Version command
+	var versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "Print the version number",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println(version)
+		},
+	}
+
 	rootCmd.AddCommand(storeCmd)
 	rootCmd.AddCommand(eraseCmd)
+	rootCmd.AddCommand(versionCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

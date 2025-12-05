@@ -40,13 +40,19 @@ jobs:
         with:
           go-version: '1.21'
 
+      - name: Get version
+        id: version
+        run: |
+          VERSION=${GITHUB_REF_NAME:-dev}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Build binary
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
         run: |
-          go build -ldflags="-s -w" -o git-credential-azure-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} .
+          go build -ldflags="-s -w -X main.version=${{ steps.version.outputs.version }}" -o git-credential-azure-cli-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
