@@ -37,6 +37,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -45,8 +46,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Version information (set via ldflags at build time)
-var version = "dev"
+// Version information (set via ldflags at build time, or read from build info)
+var version = ""
+
+func init() {
+	if version == "" {
+		if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" {
+			version = info.Main.Version
+		} else {
+			version = "dev"
+		}
+	}
+}
 
 var defaultAllowedDomains = []string{"visualstudio.com", "dev.azure.com"}
 
