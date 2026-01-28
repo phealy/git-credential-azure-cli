@@ -19,8 +19,12 @@
 //	git config --global --add azureCliCredentialHelper.allowedDomain "dev.azure.com"
 //
 //	# Set resource overrides for specific URLs (uses git's urlmatch):
-//	git config --global "azureCliCredentialHelper.https://goproxyprod.goms.io.resource" "https://microsoft.onmicrosoft.com/AKSGoProxyMSFT"
-//	# Query with: git config --get-urlmatch azureCliCredentialHelper https://goproxyprod.goms.io
+//	git config --global "azureCliCredentialHelper.https://yourproxy.yourdomain.resource" "https://microsoft.onmicrosoft.com/AKSGoProxyMSFT"
+//	# Query with: git config --get-urlmatch azureCliCredentialHelper https://yourproxy.yourdomain
+//
+//	# Set tenant overrides for specific URLs (uses git's urlmatch):
+//	git config --global "azureCliCredentialHelper.https://yourproxy.yourdomain.tenant" "your-tenant-id-or-name"
+//	# Query with: git config --get-urlmatch azureCliCredentialHelper https://yourproxy.yourdomain
 //
 //	# Default allowed domains: visualstudio.com,dev.azure.com
 package main
@@ -55,6 +59,7 @@ var (
 	gitCfg            *gitconfig.Configs
 	allowedDomains    []string
 	resourceOverrides map[string]string
+	tenantOverrides   map[string]string
 )
 
 // Verbose level for debug output
@@ -97,19 +102,33 @@ func loadConfig() {
 		resourceOverrides[k] = v
 	}
 
+	// Load tenant overrides
+	// Keys are in format: azureclicredentialhelper.<url>.tenant
+	tenantOverrides = make(map[string]string)
+
 	const prefix = "azureclicredentialhelper."
-	const suffix = ".resource"
+	const resourceSuffix = ".resource"
+	const tenantSuffix = ".tenant"
 	for _, key := range gitCfg.List(prefix) {
-		if !strings.HasSuffix(key, suffix) {
-			continue
-		}
-		// Extract URL/host between prefix and suffix
-		urlPart := strings.TrimPrefix(key, prefix)
-		urlPart = strings.TrimSuffix(urlPart, suffix)
-		if urlPart != "" {
-			if resource := gitCfg.Get(key); resource != "" {
-				resourceOverrides[urlPart] = resource
-				debugf(2, "Loaded resource override: %s -> %s", urlPart, resource)
+		if strings.HasSuffix(key, resourceSuffix) {
+			// Extract URL/host between prefix and suffix
+			urlPart := strings.TrimPrefix(key, prefix)
+			urlPart = strings.TrimSuffix(urlPart, resourceSuffix)
+			if urlPart != "" {
+				if resource := gitCfg.Get(key); resource != "" {
+					resourceOverrides[urlPart] = resource
+					debugf(2, "Loaded resource override: %s -> %s", urlPart, resource)
+				}
+			}
+		} else if strings.HasSuffix(key, tenantSuffix) {
+			// Extract URL/host between prefix and suffix
+			urlPart := strings.TrimPrefix(key, prefix)
+			urlPart = strings.TrimSuffix(urlPart, tenantSuffix)
+			if urlPart != "" {
+				if tenant := gitCfg.Get(key); tenant != "" {
+					tenantOverrides[urlPart] = tenant
+					debugf(2, "Loaded tenant override: %s -> %s", urlPart, tenant)
+				}
 			}
 		}
 	}
@@ -128,15 +147,28 @@ func isAllowedHost(host string, allowedDomains []string) bool {
 
 func getResourceForHost(protocol, host string) string {
 	url := fmt.Sprintf("%s://%s", protocol, host)
-	// Check for URL-based override first (e.g., https://goproxyprod.goms.io)
+	// Check for URL-based override first (e.g., https://yourproxy.yourdomain)
 	if resource, ok := resourceOverrides[url]; ok {
 		return resource
 	}
-	// Check for host-only override (e.g., goproxyprod.goms.io)
+	// Check for host-only override (e.g., yourproxy.yourdomain)
 	if resource, ok := resourceOverrides[host]; ok {
 		return resource
 	}
 	return url + "/"
+}
+
+func getTenantForHost(protocol, host string) string {
+	url := fmt.Sprintf("%s://%s", protocol, host)
+	// Check for URL-based override first (e.g., https://yourproxy.yourdomain)
+	if tenant, ok := tenantOverrides[url]; ok {
+		return tenant
+	}
+	// Check for host-only override (e.g., yourproxy.yourdomain)
+	if tenant, ok := tenantOverrides[host]; ok {
+		return tenant
+	}
+	return ""
 }
 
 func parseInput() (map[string]string, []string) {
@@ -230,9 +262,17 @@ func getCredential(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Create Azure CLI credential
+	// Create Azure CLI credential with optional tenant override
 	ctx := context.Background()
-	cred, err := azidentity.NewAzureCLICredential(nil)
+	tenant := getTenantForHost(protocol, host)
+	var credOpts *azidentity.AzureCLICredentialOptions
+	if tenant != "" {
+		debugf(1, "Using tenant override: %s", tenant)
+		credOpts = &azidentity.AzureCLICredentialOptions{
+			TenantID: tenant,
+		}
+	}
+	cred, err := azidentity.NewAzureCLICredential(credOpts)
 	if err != nil {
 		debugf(1, "Failed to create Azure CLI credential: %v", err)
 		os.Exit(1)
